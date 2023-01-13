@@ -1,0 +1,848 @@
+---
+title: "**Código Práctica 2**"
+author: "Andres Ricardo Sanabria Garay"
+date: "Enero 2023"
+output: 
+  html_document:
+    highlight: default
+    theme: cosmo
+    number_sections: yes
+    toc_depth: 2
+    includes:
+      in_header: Practica2-header_codigo.html
+  word_document: default
+  pdf_document:
+    highlight: zenburn
+---
+
+<style>
+body {
+text-align: justify;
+color: #030164}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+<h2>Contenido</h2>
+
++ Descripción de la práctica a realizar
+
++ Descripción del dataset
+
++ Integración y selección
+
++ Limpieza de los datos
+
++ ¿Los datos contienen ceros o elementos vacíos? Gestiona cada uno de estos casos.
+
++ Identifica y gestiona los valores extremos.
+
++ Análisis de los datos.
+
++ Selección de los grupos de datos que se quieren analizar/comparar (p. ej., si se van a comparar grupos de datos, ¿cuáles son estos grupos y qué tipo de análisis se van a aplicar?)
+
++ Comprobación de la normalidad y homogeneidad de la varianza.
+
++ Aplicación de pruebas estadísticas para comparar los grupos de datos. En función de los datos y el objetivo del estudio, aplicar pruebas de contraste de hipótesis, correlaciones, regresiones, etc. Aplicar al menos tres métodos de análisis diferentes. 
+
++ Representación de los resultados
+
++ Resolución del problema
+
++ Código
+
++ Video
+
+
+# Descripción del dataset
+
+A continuación realizamos la carga del dataset "Heart Attack Analysis & Prediction dataset", disponible en Kaggle en el siguiente enlace:
+
+<href>https://www.kaggle.com/datasets/rashikrahmanpritom/heart-attack-analysis-prediction-dataset</href>
+
+Para el análisis de datos exploratorio:
+
+```{r}
+# Cargamos las librerías que utilizaremos
+if(!require(dplyr)){
+    install.packages('dplyr', repos='http://cran.us.r-project.org')
+    library(dplyr)
+}
+if(!require(ggplot2)){
+    install.packages('ggplot2', repos='http://cran.us.r-project.org')
+    library(ggplot2)
+}
+if(!require(stats)){
+    install.packages('stats', repos='http://cran.us.r-project.org')
+    library(stats)
+}
+if(!require(imputeTS)){
+    install.packages('imputeTS', repos='http://cran.us.r-project.org')
+    library(imputeTS)
+}
+if(!require(psych)){
+    install.packages('psych', repos='http://cran.us.r-project.org')
+    library(psych)
+}
+if(!require(summarytools)){
+    install.packages('summarytools', repos='http://cran.us.r-project.org')
+    library(summarytools)
+}
+if(!require(car)){
+    install.packages('car', repos='http://cran.us.r-project.org')
+    library(car)
+}
+if(!require(caret)){
+    install.packages('caret', dependencies = TRUE, repos='http://cran.rstudio.com/')
+    library(caret)
+}
+if(!require(rpart)){
+    install.packages('rpart', dependencies = TRUE, repos='http://cran.rstudio.com/')
+    library(rpart)
+}
+if(!require(rpart.plot)){
+    install.packages('rpart.plot', dependencies = TRUE, repos='http://cran.rstudio.com/')
+    library(rpart.plot)
+}
+
+# Cargamos el conjunto de datos
+df_heart_attack <- read.csv("heart.csv", header = TRUE, sep = ",")
+summary(df_heart_attack)
+```
+
+Aunque en este archivo tenemos el código empleado en la prueba también tendremos la descripción de cada variable por motivos de referencia:
+
+El conjunto de variables son las siguientes:
+
++ age: 		Edad del paciente
++ sex:		Sexo del paciente
++ cp: 		Tipo de dolor de pecho (1: Angina típica, 2: Angina atípica, 3: Dolor no anginal, 4: Asintomático)
++ trtbps:		Presión sanguínea en reposo (en mm Hg)
++ chol:		Colesterol en mg/dl obtenido mediante sensor BMI
++ fbs: 		Glucemia en sangre > 120 mg/dl (1 = true; 0 = false)
++ restecg: 	Resultados del electrocardiograma en reposo [0: normal, 1: teniendo ondas anormales ST-T (T inversiones de onda y/o ST elevación o depresión > 0.05 mV), 2: muestra probable o definitiva hipertrofia ventricular izquierda por el criterio de Estes]
++ thalachh:	Máximo ritmo cardiaco alcanzado
++ exng: 		El ejercicio produce angina (1 = si, 0 = no)
++ oldpeak:	Depresión del ST inducida por el ejercicio en relación con el reposo
++ slp:		Pendiente del segmento ST de ejercicio máximo (0 = sin pendiente, 1 =  plana, 2 = pendiente baja)
++ caa: 		Número de vasos sanguíneos principales (0-3)
++ thall:		Talasemia (0 = nula, 1 = defecto fijo, 2 = normal, 3 = defecto reversible)
++ output:	0= menos chance de tener un ataque al corazón, 1= mayor chance de tener un ataque al corazón.
+
+# Integración y selección
+
+Para el segundo punto de la práctica, conviene revisar si existen valores duplicados, por lo que podemos hacer uso de la función duplicated() del paquete dplyr y revisar en el vector que se almacena cuantos valores aparecen duplicados
+
+```{r}
+duplicados <- duplicated(df_heart_attack)
+summary(duplicados)
+```
+
+Efectivamente se encuentra un valor duplicado, con la función unique() podemos remover los valores duplicados
+
+```{r}
+df_heart_attack <- unique(df_heart_attack)
+
+# Verificamos si existen duplicados
+
+duplicados <- duplicated(df_heart_attack)
+summary(duplicados)
+```
+
+Como se puede observar ahora nuestro dataset cuenta con 302 observaciones.
+
+
+Pära continuar con los análisis, es importante que las variables categoricas y numéricas tengan la tipificación correcta, por lo que procedemos a examinar de que manera R las tipificó:
+
+```{r}
+str(df_heart_attack)
+```
+
+A partir de este resultado se puede ver que R ha tipificado todas los atributos de tipo int o num, cuando en realidad hay algunos de ellos que corresponden a variables categóricas como el sexo o el tipo de dolor de pecho, por lo que procedemos a realizar los respectivos ajustes en la tipificación:
+
+```{r}
+# Procedemos con los cambios en los tipos de variables
+df_heart_attack$sex <- as.factor(df_heart_attack$sex)
+df_heart_attack$cp <- as.factor(df_heart_attack$cp)
+df_heart_attack$fbs <- as.factor(df_heart_attack$fbs)
+df_heart_attack$restecg <- as.factor(df_heart_attack$restecg)
+df_heart_attack$exng <- as.factor(df_heart_attack$exng)
+df_heart_attack$slp <- as.factor(df_heart_attack$slp)
+df_heart_attack$caa <- as.factor(df_heart_attack$caa)
+df_heart_attack$thall <- as.factor(df_heart_attack$thall)
+df_heart_attack$output <- as.factor(df_heart_attack$output)
+
+# Verificamos que el tipo de cada atributo ahora si corresponda con el esperado
+str(df_heart_attack)
+```
+
+# Limpieza de los datos
+
+
+## ¿Los datos contienen ceros o elementos vacíos? Gestiona cada uno de estos casos. 
+
+
+La función summary() nos permite conocer si hay valores no disponibles o nulos en los atributos, veamos el resultado:
+
+```{r}
+summary(df_heart_attack)
+```
+
+Si bien no se presentan elementos vacíos, el atributo thall que corresponde a la Talasemia, muestra 2 valores nulos representados por ceros y si tenemos en cuenta que la talasemia es una enfermedad genética que afecta la producción de hemoglobina, causando anemia y otros problemas de salud, imputar un valor a un paciente no es adecuado. Por lo anterior, se decide prescindir de estos dos registros
+
+```{r}
+df_heart_attack <- df_heart_attack[df_heart_attack$thall != 0,]
+summary(df_heart_attack)
+dim(df_heart_attack)
+```
+
+Nótese que aunque otros atributos incluyen el cero dentro de sus valores, estos tienen un significado diferente. Así, hemos eliminado 2 valores nulos de la variable thall y ahora contamos con 300 observaciones.
+
+
+## Identifica y gestiona los valores extremos
+
+
+Para identificar los valores extremos, primero realizaremos una inspección visual sobre los atributos cuantitativos con gráficos de caja o box plot:
+
+
+```{r}
+# Para la variable age
+
+age.bp<-boxplot(df_heart_attack$age,main="Variable age")
+age.bp$out
+
+```
+
+En el caso de la variable age no tenemos outliers
+
+```{r}
+# Para la variable trtbps
+
+trtbps.bp<-boxplot(df_heart_attack$trtbps,main="Variable trtbps")
+trtbps.bp$out
+```
+
+Para el atributo trtbps que representa la presión sanguínea en reposo (en mmHg), encontramos 9 valores que se ubican por encima de 1.5 veces el rango intercuartílico porlo que podemos describirlos como valores atípicos. Revisando referencias como la disponible en:
+
+https://medlineplus.gov/spanish/highbloodpressure.html 
+
+Podemos decir que estos valores en reposo son extremadamente raros y para el caso de los que superan el valor de 180 requiren atención médica inmediata, por lo que se puede pensar que en el momento de la toma hubo un error en el instrumento utilizado o en la lectura de quién realizó el exámen. Por tanto, los valores mayores a 1.5 veces el rango intercuartílico más el tercer cuartil, serán reemplazados con la mediana de este atributo.
+
+
+```{r}
+RI_trtbps <- IQR(df_heart_attack$trtbps)
+Q3_trtbps <- quantile(df_heart_attack$trtbps, 0.75)
+df_heart_attack[df_heart_attack$trtbps > (Q3_trtbps + 1.5 * RI_trtbps), "trtbps"] <- median(df_heart_attack$trtbps)
+trtbps.bp <- boxplot(df_heart_attack$trtbps,main="Variable trtbps")
+trtbps.bp$out
+```
+
+Como se puede observar se han ajustado los outliers para la variable trtbps.
+
+```{r}
+# Para la variable chol
+
+chol.bp<-boxplot(df_heart_attack$chol,main="Variable chol")
+chol.bp$out
+```
+
+Para la variable chol que representa el colesterol en mg/dl obtenido mediante sensor BMI se encuentran 5 valores considerados como outliers al ubicarse 1.5 veces del rango intercuartilico por encima del tercer cuartil. No obstante, existe una patología conocida como Hipercolesterolemia Familiar (HF), donde los niveles de colesterol LDL pueden llegar a superar los 500 mg/dL. A pesar de ello también es una condición muy extraña y pensar que por lo menos 5 individuos de la muestra de la que disponemos la tienen, es poco probable. Ahora bien, si se considera la posibilidad de que existe una relación entre el colesterol alto y el riesgo de sufrir un ataque cardiaco, reemplazaremos estos valores por el valor del tercer cuartil
+
+```{r}
+RI_chol <- IQR(df_heart_attack$chol)
+Q3_chol <- quantile(df_heart_attack$chol, 0.75)
+df_heart_attack[df_heart_attack$chol > (Q3_chol + 1.5 * RI_chol), "chol"] <- Q3_chol
+chol.bp <- boxplot(df_heart_attack$chol,main="Variable chol")
+chol.bp$out
+```
+
+Como se puede observar se han ajustado los outliers para la variable chol.
+
+```{r}
+
+# Para la variable thalachh
+
+thalachh.bp<-boxplot(df_heart_attack$thalachh,main="Variable thalachh")
+thalachh.bp$out
+```
+
+Para la variable thalachh que representa el máximo ritmo cardiaco alcanzado, es valor que se haya como outlier es un valor real que puede ser posible. No obstante, su influencia en la media nos lleva a reemplazar este valor por el valor del primer cuartil.
+
+```{r}
+RI_thalachh <- IQR(df_heart_attack$thalachh)
+Q1_thalachh <- quantile(df_heart_attack$thalachh, 0.25)
+df_heart_attack[df_heart_attack$thalachh < (Q1_thalachh - 1.5 * RI_thalachh), "thalachh"] <- Q1_thalachh
+thalachh.bp <- boxplot(df_heart_attack$thalachh,main="Variable thalachh")
+thalachh.bp$out
+```
+
+Como se puede observar se han ajustado los outliers para la variable thalachh.
+
+```{r}
+# Para la variable oldpeak
+
+oldpeak.bp<-boxplot(df_heart_attack$oldpeak,main="Variable oldpeak")
+oldpeak.bp$out
+```
+
+Para la variable oldpeak que representa la depresión del segmento ST inducida por el ejercicio en relación con el reposo se encuentran 5 outliers y se conoce que en general es deseado que este valor este por debajo de 1 y por encima de 2 ya representa un alto riesgo.
+
+Para tratar con estos valores lo primero que notamos en la gráfica de caja es que no se trata de una distribución normal, por tanto utilizaremos un método de interpolación para reemplazar los valores que son outliers, para ello utilizaremos la función na.interpolation de la librería imputeTS.
+
+Primero convertiremos los outliers en valores nulos
+
+```{r}
+RI_oldpeak <- IQR(df_heart_attack$oldpeak)
+Q3_oldpeak <- quantile(df_heart_attack$oldpeak, 0.75)
+df_heart_attack[df_heart_attack$oldpeak > (Q3_oldpeak + 1.5 * RI_oldpeak), "oldpeak"] <- NA
+```
+
+Ahora si procedemos con la imputación
+
+```{r}
+df_heart_attack[["oldpeak"]] <- na_interpolation(df_heart_attack[["oldpeak"]])
+```
+
+Y verificamos si los outliers fueron ajustados
+
+```{r}
+summary(df_heart_attack$oldpeak)
+oldpeak.bp<-boxplot(df_heart_attack$oldpeak,main="Variable oldpeak")
+oldpeak.bp$out
+```
+
+# Análisis de los datos
+
+## Selección de los grupos de datos que se quieren analizar/comparar (p. ej., si se van a comparar grupos de datos, ¿cuáles son estos grupos y qué tipo de análisis se van a aplicar?)
+
+Empezamos con un poco de estadística descriptiva sobre el dataframe, para ello empleamos la función describe() sobre las variables cuantitativas
+
+```{r}
+describe(df_heart_attack[,c("age","trtbps", "chol", "thalachh", "oldpeak")])
+```
+
+Para incluir todas las variables podemos emplear la función dfSummary()
+
+```{r}
+print(
+  dfSummary(df_heart_attack, 
+            plain.ascii  = FALSE, 
+            style        = "grid", 
+            graph.magnif = 0.75, 
+            valid.col    = FALSE,
+            tmp.img.dir  = "temp"),
+  method = "render"
+)
+```
+
+En este punto, procedemos a generar los grupos a partir de nuestro conjunto de datos que nos gustaría analizar y comparar. Generaremos un grupo de hombres y otro de mujeres, así como un grupo para las personas menores de 55 años y otro para las de 55 años o más. 
+
+```{r}
+# Grupos por sexo
+
+df_heart_mujeres <- df_heart_attack[df_heart_attack$sex == 0,]
+dim(df_heart_mujeres)
+df_heart_hombres <- df_heart_attack[df_heart_attack$sex == 1,]
+dim(df_heart_hombres)
+
+# Grupos por edad
+
+df_heart_juventud <- df_heart_attack[df_heart_attack$age < 55,]
+dim(df_heart_juventud)
+df_heart_experiencia <- df_heart_attack[df_heart_attack$age >= 55,]
+dim(df_heart_experiencia)
+```
+
+
+## Comprobación de la normalidad y homogeneidad de la varianza. 
+
+Con el objetivo de comprobar la normalidad de los datos, iniciaremos aplicando los test de Kolmogorov-Smirnov y de Shapiro-Wilk. La hipótesis nula será que el atributo bajo análisis tienen una distribución normal con un valor de significancia igual a 0.05, en este caso si el p-valor es menor al nivel de significancia, entonces la hipótesis nula es rechazada y se
+concluye que los datos no cuentan con una distribución normal
+
+```{r warning = FALSE}
+
+# Grupo completo de datos que se han tratado hasta este punto
+# Corremos el test sobre las variables age, trtbps, chol, thalachh, oldpeak
+
+# Resultado del test de Kolmogorov-Smirnov
+
+ks.test(df_heart_attack$age, pnorm, exact = NULL, mean(df_heart_attack$age), sd(df_heart_attack$age))
+ks.test(df_heart_attack$trtbps, pnorm, exact = NULL, mean(df_heart_attack$trtbps), sd(df_heart_attack$trtbps))
+ks.test(df_heart_attack$chol, pnorm, exact = NULL, mean(df_heart_attack$chol), sd(df_heart_attack$chol))
+ks.test(df_heart_attack$thalachh, pnorm, exact = NULL, mean(df_heart_attack$thalachh), sd(df_heart_attack$thalachh))
+ks.test(df_heart_attack$oldpeak, pnorm, exact = NULL, mean(df_heart_attack$oldpeak), sd(df_heart_attack$oldpeak))
+
+# Resultado del test de Shapiro-Wilk
+
+lapply(df_heart_attack[,c("age", "trtbps", "chol", "thalachh", "oldpeak")], shapiro.test)
+```
+
+Ahora la comprobación para el Grupo de mujeres y hombres
+
+```{r warning = FALSE}
+
+# Grupo de mujeres
+# Corremos el test sobre las variables age, trtbps, chol, thalachh, oldpeak
+
+# Resultado del test de Kolmogorov-Smirnov
+
+ks.test(df_heart_mujeres$age, pnorm, exact = NULL, mean(df_heart_mujeres$age), sd(df_heart_mujeres$age))
+ks.test(df_heart_mujeres$trtbps, pnorm, exact = NULL, mean(df_heart_mujeres$trtbps), sd(df_heart_mujeres$trtbps))
+ks.test(df_heart_mujeres$chol, pnorm, exact = NULL, mean(df_heart_mujeres$chol), sd(df_heart_mujeres$chol))
+ks.test(df_heart_mujeres$thalachh, pnorm, exact = NULL, mean(df_heart_mujeres$thalachh), sd(df_heart_mujeres$thalachh))
+ks.test(df_heart_mujeres$oldpeak, pnorm, exact = NULL, mean(df_heart_mujeres$oldpeak), sd(df_heart_mujeres$oldpeak))
+
+# Resultado del test de Shapiro-Wilk
+
+lapply(df_heart_mujeres[,c("age", "trtbps", "chol", "thalachh", "oldpeak")], shapiro.test)
+
+
+# Grupo de hombres
+# Corremos el test sobre las variables age, trtbps, chol, thalachh, oldpeak
+
+# Resultado del test de Kolmogorov-Smirnov
+
+ks.test(df_heart_hombres$age, pnorm, exact = NULL, mean(df_heart_hombres$age), sd(df_heart_hombres$age))
+ks.test(df_heart_hombres$trtbps, pnorm, exact = NULL, mean(df_heart_hombres$trtbps), sd(df_heart_hombres$trtbps))
+ks.test(df_heart_hombres$chol, pnorm, exact = NULL, mean(df_heart_hombres$chol), sd(df_heart_hombres$chol))
+ks.test(df_heart_hombres$thalachh, pnorm, exact = NULL, mean(df_heart_hombres$thalachh), sd(df_heart_hombres$thalachh))
+ks.test(df_heart_hombres$oldpeak, pnorm, exact = NULL, mean(df_heart_hombres$oldpeak), sd(df_heart_hombres$oldpeak))
+
+# Resultado del test de Shapiro-Wilk
+
+lapply(df_heart_hombres[,c("age", "trtbps", "chol", "thalachh", "oldpeak")], shapiro.test)
+
+```
+
+Y finalmente para los grupos juventud y experiencia obtenidos a partir de la edad
+
+```{r warning = FALSE}
+
+# Grupo de juventud
+# Corremos el test sobre las variables trtbps, chol, thalachh, oldpeak
+
+# Resultado del test de Kolmogorov-Smirnov
+
+ks.test(df_heart_juventud$trtbps, pnorm, exact = NULL, mean(df_heart_juventud$trtbps), sd(df_heart_juventud$trtbps))
+ks.test(df_heart_juventud$chol, pnorm, exact = NULL, mean(df_heart_juventud$chol), sd(df_heart_juventud$chol))
+ks.test(df_heart_juventud$thalachh, pnorm, exact = NULL, mean(df_heart_juventud$thalachh), sd(df_heart_juventud$thalachh))
+ks.test(df_heart_juventud$oldpeak, pnorm, exact = NULL, mean(df_heart_juventud$oldpeak), sd(df_heart_juventud$oldpeak))
+
+# Resultado del test de Shapiro-Wilk
+
+lapply(df_heart_juventud[,c("trtbps", "chol", "thalachh", "oldpeak")], shapiro.test)
+
+
+# Grupo experiencia
+# Corremos el test sobre las variables trtbps, chol, thalachh, oldpeak
+
+# Resultado del test de Kolmogorov-Smirnov
+
+ks.test(df_heart_experiencia$trtbps, pnorm, exact = NULL, mean(df_heart_experiencia$trtbps), sd(df_heart_experiencia$trtbps))
+ks.test(df_heart_experiencia$chol, pnorm, exact = NULL, mean(df_heart_experiencia$chol), sd(df_heart_experiencia$chol))
+ks.test(df_heart_experiencia$thalachh, pnorm, exact = NULL, mean(df_heart_experiencia$thalachh), sd(df_heart_experiencia$thalachh))
+ks.test(df_heart_experiencia$oldpeak, pnorm, exact = NULL, mean(df_heart_experiencia$oldpeak), sd(df_heart_experiencia$oldpeak))
+
+# Resultado del test de Shapiro-Wilk
+
+lapply(df_heart_experiencia[,c("trtbps", "chol", "thalachh", "oldpeak")], shapiro.test)
+
+```
+
+
+Para comprobar la homogenidad de varianzas entre los atributos de nuestro conjunto de datos emplearemos los test de Levene para los casos en los que la distribución es normal y Fligner Killen cuando los datos no cumplen la condición de normalidad.
+
+```{r}
+# Estableciendo Homocedasticidad entre los atributos cuantitativos
+
+leveneTest(df_heart_attack$age,df_heart_attack$chol)
+fligner.test(df_heart_attack$trtbps, df_heart_attack$thalachh)
+fligner.test(df_heart_attack$thalachh, df_heart_attack$oldpeak)
+```
+
+Como se puede observar hay Homocedasticidad entre los atributos comparados
+
+
+##  Aplicación de pruebas estadísticas para comparar los grupos de datos. En función de los datos y el objetivo del estudio, aplicar pruebas de contraste de hipótesis, correlaciones, regresiones, etc. Aplicar al menos tres métodos de análisis diferentes.
+
+
+Vamos a comparar el atributo chol que representa el colesterol, entre los grupos de mujeres y hombres. Del punto anterior sabemos que estos atributos tienen una distribución normal  y presentan homostecidad por tanto podemos emplear la prueba de t Student, en esta prueba la hipótesis nula asume que las medias de los grupos de datos son las mismas
+
+```{r}
+result_chol <- t.test(df_heart_mujeres$chol, df_heart_hombres$chol)
+
+# imprimimos el valor p y el estadístico t
+result_chol$p.value
+result_chol$statistic
+```
+
+Como el valor de p es menor que la significancia (0.05) la hipótesis nula se rechaza y se encuentra que para el atributo colesterol se observan diferencias estadísticamente significativas entre los grupos de datos.
+
+Ahora vamos a realizar las pruebas para las variables trtbps, thalachh y oldpeak. En este caso como no se pudo comprobar la normalidad de los atributos emplearemos la prueba de Wilcoxon
+
+```{r}
+# realizamos la prueba wilcoxon sobre la variable trtbps
+result_trtbps <- wilcox.test(df_heart_mujeres$trtbps, df_heart_hombres$trtbps)
+
+# imprimimos el valor p y el estadístico
+result_trtbps$p.value
+result_trtbps$statistic
+
+
+# realizamos la prueba wilcoxon sobre la variable thalachh
+result_trtbps <- wilcox.test(df_heart_mujeres$thalachh, df_heart_hombres$thalachh)
+
+# imprimimos el valor p y el estadístico
+result_trtbps$p.value
+result_trtbps$statistic
+
+
+# realizamos la prueba wilcoxon sobre la variable oldpeak
+result_trtbps <- wilcox.test(df_heart_mujeres$oldpeak, df_heart_hombres$oldpeak)
+
+# imprimimos el valor p y el estadístico
+result_trtbps$p.value
+result_trtbps$statistic
+```
+
+Para estos tres atributos no se encontraron diferencias estadísticamente significativas para los grupos de hombres y mujeres ya que el valor de p se ubicar por encima del valor de significancia y por tanto no se puede rechazar la hipótesis nula.
+
+
+Repetimos este análisis para los grupos juventud y experiencia:
+
+```{r}
+result_chol <- t.test(df_heart_juventud$chol, df_heart_experiencia$chol)
+
+# imprimimos el valor p y el estadístico t
+result_chol$p.value
+result_chol$statistic
+
+# realizamos la prueba wilcoxon sobre la variable trtbps
+result_trtbps <- wilcox.test(df_heart_juventud$trtbps, df_heart_experiencia$trtbps)
+
+# imprimimos el valor p y el estadístico
+result_trtbps$p.value
+result_trtbps$statistic
+
+
+# realizamos la prueba wilcoxon sobre la variable thalachh
+result_trtbps <- wilcox.test(df_heart_juventud$thalachh, df_heart_experiencia$thalachh)
+
+# imprimimos el valor p y el estadístico
+result_trtbps$p.value
+result_trtbps$statistic
+
+
+# realizamos la prueba wilcoxon sobre la variable oldpeak
+result_trtbps <- wilcox.test(df_heart_juventud$oldpeak, df_heart_experiencia$oldpeak)
+
+# imprimimos el valor p y el estadístico
+result_trtbps$p.value
+result_trtbps$statistic
+```
+
+A diferencia de los ocurrido con los dos primeros grupos, se puede observar que para estos cuatro atributos las diferencias son estadísticamente significativas.
+
+**Contraste de Hipótesis**
+
+Para el contraste de Hipótesis utilizamos en los atributos que tienen una distribución normal el test de t Student mientras en los que no lo tienen la prueba de Wilcoxon-Mann-Whitney. La Hipótesis nula será que las medias de las muestras son iguales. Si el valor de p es menor al nivel de significancia = 0.05, rechazaremos la hipótesis nula y diremos que las medias de las dos muestras son diferentes significativamente.
+
+```{r}
+# Comparación del Grupo de mujeres y hombres atributo chol
+
+atrib_mujeres <- df_heart_mujeres$chol
+atrib_hombres <- df_heart_hombres$chol
+
+result_chol <- t.test(atrib_mujeres, atrib_hombres, alternative = "two.sided", correct = TRUE)
+
+# Obtener el valor de p
+p <- result_chol$p.value
+
+# Establecer nivel de significancia
+alpha <- 0.05
+
+# Realizar la comparación
+if (p > alpha) {
+    print(paste("No hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+} else {
+    print(paste("Hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+}
+
+```
+
+Ahora examinamos el atributo trtbps
+
+```{r}
+# Comparación del Grupo de mujeres y hombres atributo trtbps
+
+atrib_mujeres <- df_heart_mujeres$trtbps
+atrib_hombres <- df_heart_hombres$trtbps
+
+result_trtbps <- wilcox.test(atrib_mujeres, atrib_hombres, alternative = "two.sided", correct = TRUE)
+
+# Obtener el valor de p
+p <- result_trtbps$p.value
+
+# Establecer nivel de significancia
+alpha <- 0.05
+
+# Realizar la comparación
+if (p > alpha) {
+    print(paste("No hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+} else {
+    print(paste("Hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+}
+
+```
+
+Ahora analizamos el atributo thalachh
+
+```{r}
+# Comparación del Grupo de mujeres y hombres atributo thalachh
+
+atrib_mujeres <- df_heart_mujeres$thalachh
+atrib_hombres <- df_heart_hombres$thalachh
+
+result_thalachh <- wilcox.test(atrib_mujeres, atrib_hombres, alternative = "two.sided", correct = TRUE)
+
+# Obtener el valor de p
+p <- result_thalachh$p.value
+
+# Establecer nivel de significancia
+alpha <- 0.05
+
+# Realizar la comparación
+if (p > alpha) {
+    print(paste("No hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+} else {
+    print(paste("Hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+}
+
+```
+
+Procedemos con el análisis de oldpeak
+
+```{r}
+# Comparación del Grupo de mujeres y hombres atributo oldpeak
+
+atrib_mujeres <- df_heart_mujeres$oldpeak
+atrib_hombres <- df_heart_hombres$oldpeak
+
+result_oldpeak <- wilcox.test(atrib_mujeres, atrib_hombres, alternative = "two.sided", correct = TRUE)
+
+# Obtener el valor de p
+p <- result_oldpeak$p.value
+
+# Establecer nivel de significancia
+alpha <- 0.05
+
+# Realizar la comparación
+if (p > alpha) {
+    print(paste("No hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+} else {
+    print(paste("Hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+}
+
+```
+
+En este punto realizaremos la verificación entre los grupos juventud y experiencia
+
+```{r}
+# Comparación de los Grupos juventud y experiencia atributo chol
+
+atrib_juventud <- df_heart_juventud$chol
+atrib_experiencia <- df_heart_experiencia$chol
+
+result_chol <- t.test(atrib_juventud, atrib_experiencia, alternative = "two.sided", correct = TRUE)
+
+# Obtener el valor de p
+p <- result_chol$p.value
+
+# Establecer nivel de significancia
+alpha <- 0.05
+
+# Realizar la comparación
+if (p > alpha) {
+    print(paste("No hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+} else {
+    print(paste("Hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+}
+
+```
+
+Ahora examinamos el atributo trtbps
+
+```{r}
+# Comparación de los Grupos juventud y experiencia atributo trtbps
+
+atrib_juventud <- df_heart_juventud$trtbps
+atrib_experiencia <- df_heart_experiencia$trtbps
+
+result_trtbps <- wilcox.test(atrib_juventud, atrib_experiencia, alternative = "two.sided", correct = TRUE)
+
+# Obtener el valor de p
+p <- result_trtbps$p.value
+
+# Establecer nivel de significancia
+alpha <- 0.05
+
+# Realizar la comparación
+if (p > alpha) {
+    print(paste("No hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+} else {
+    print(paste("Hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+}
+
+```
+
+Ahora analizamos el atributo thalachh
+
+```{r}
+# Comparación de los Grupos juventud y experiencia atributo thalachh
+
+atrib_juventud <- df_heart_juventud$thalachh
+atrib_experiencia <- df_heart_experiencia$thalachh
+
+result_thalachh <- wilcox.test(atrib_juventud, atrib_experiencia, alternative = "two.sided", correct = TRUE)
+
+# Obtener el valor de p
+p <- result_thalachh$p.value
+
+# Establecer nivel de significancia
+alpha <- 0.05
+
+# Realizar la comparación
+if (p > alpha) {
+    print(paste("No hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+} else {
+    print(paste("Hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+}
+
+```
+
+Procedemos con el análisis de oldpeak
+
+```{r}
+# Comparación de los Grupos juventud y experiencia atributo oldpeak
+
+atrib_juventud <- df_heart_juventud$oldpeak
+atrib_experiencia <- df_heart_experiencia$oldpeak
+
+result_oldpeak <- wilcox.test(atrib_mujeres, atrib_experiencia, alternative = "two.sided", correct = TRUE)
+
+# Obtener el valor de p
+p <- result_oldpeak$p.value
+
+# Establecer nivel de significancia
+alpha <- 0.05
+
+# Realizar la comparación
+if (p > alpha) {
+    print(paste("No hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+} else {
+    print(paste("Hay diferencias significativas entre los atributos de los dos dataframes (p =", round(p,3),")"))
+}
+
+```
+
+**Análisis de correlación de variables cuantitativas**
+
+Utilizamos la función cor.test() sobre las variables cuantitativas para calcular el valor de correlación
+
+```{r}
+cor.test(df_heart_attack$age, df_heart_attack$trtbps, method="spearman")
+cor.test(df_heart_attack$age, df_heart_attack$chol, method="spearman")
+cor.test(df_heart_attack$age, df_heart_attack$thalachh, method="spearman")
+cor.test(df_heart_attack$age, df_heart_attack$oldpeak, method="spearman")
+cor.test(df_heart_attack$trtbps, df_heart_attack$chol, method="spearman")
+cor.test(df_heart_attack$trtbps, df_heart_attack$thalachh, method="spearman")
+cor.test(df_heart_attack$trtbps, df_heart_attack$oldpeak, method="spearman")
+cor.test(df_heart_attack$chol, df_heart_attack$thalachh, method="spearman")
+cor.test(df_heart_attack$chol, df_heart_attack$oldpeak, method="spearman")
+cor.test(df_heart_attack$thalachh, df_heart_attack$oldpeak, method="spearman")
+```
+
+Ninguno de los resultados se acerca a 1 o -1 ni siquieran superan 0.5 o están por debajo de -0.5, lo que nos permite suponer una debil correlación entre estas variables o dependencia, algo que será clave para la elaboración de nuestros modelos.
+
+
+**Modelo de regresión logística**
+
+Iniciamos generando nuestro conjunto de entrenamiento y prueba en una proporcion 80 - 20
+
+```{r}
+set.seed(123)  # Valor para obtener siempre la misma muestra aleatoria
+train_model <- df_heart_attack %>% sample_frac(0.8)
+test_model <- df_heart_attack %>% anti_join(train_model)
+```
+
+Procedemos con la creación del modelo de regresión logística utilizando el conjunto de datos de entrenamiento
+
+```{r}
+model_logistic <- glm(output ~ age + sex + cp + trtbps + chol + fbs + restecg + thalachh + exng + oldpeak + slp + caa + thall, data = train_model, family = binomial)
+summary(model_logistic)
+```
+
+Podemos estudiar la presencia de colinealidad entre las variables independientes utilizando el test de Variance Inflation Factor (VIF). El VIF es una medida que indica el grado de colinealidad entre dos o más variables independientes. Cuanto mayor sea el VIF, más colineal serán las variables. Un VIF mayor que 10 suele considerarse como un indicio de colinealidad y puede requerir la eliminación de una o más variables del modelo.
+
+Para calcular el VIF de las variables independientes de un modelo de regresión logística, se puede emplear la función vif() que requiere como argumento el modelo estimado con la función glm() y devuelve un vector con el VIF de cada variable independiente.
+
+```{r}
+vif(model_logistic)
+```
+
+Ninguno de los valores se acerca si quiera a un número de dos cifras, lo que nos permite descartar la probabilidad de colinealidad de las variables empleadas en nuestro modelo. Ahora encarguemonos de probar el modelo con los datos de prueba.Analizaremos la precisión del modelo contra el conjunto de prueba (testing).Se asumirá que la predicción del modelo es 1 (mayor chance de tener un ataque al corazón), si la probabilidad del modelo de regresión logística es superior o igual a 0.5 y 0 en caso contrario.
+
+
+```{r}
+predicciones <- predict(model_logistic, test_model)
+vlr_prediccion <- as.numeric(predicciones >= 0.5)
+aciertos <- sum(test_model$output == vlr_prediccion)
+tasa_aciertos <- aciertos / length(predicciones)
+tasa_aciertos
+```
+
+Tenemos una precisión del 85% del modelo, en realidad es bastante buena. Ahora, podemos generar la matriz de confusión con la función confusionMatrix de la librería caret
+
+```{r}
+cat_output <- factor(test_model$output)
+cat_vlr_prediccion <- factor(vlr_prediccion)
+matriz_confusion <- confusionMatrix(cat_output, cat_vlr_prediccion)
+matriz_confusion
+```
+
+De la matriz de confusión también obtenemos las medidas de Sensibilidad = 0.7941 y Especificidad = 0.9231. Recordemos que la Sensibilidad nos indica en que proporción el modelo identificó correctamente a las personas con mayor chance de sufrir un ataque cardiaco, mientras la Especificidad nos muestra los paciente con menor chance que también fueron clasificados correctamente.
+
+El modelo es bueno toda vez que los parámetros que hemos evaluado se encuentran por encima de 0.79
+
+
+# Representación de los resultados
+
+Todo lo desarrollado en este documento.
+
+
+# Resolución del problema
+
+En el inicio de esta práctica planteamos las preguntas:
+
+¿Es posible predecir si una persona tiene mayor o menor chance de sufrir un ataque al corazón?, ¿con que precisión?
+
+La respuesta es sí, con una precisión del 85%, sensibilidad del 79.41% y especificidad del 92.31%.
+
+Lo anterior luego de generar un modelo de regresión logística en el que la variable objetivo fue output (mayor o menor chance de sufrir un ataque cardiaco). Es importante tener en cuenta que este modelo tiene mejores posibilidades de predicción correcta si del paciente bajo análisis se obtienen datos que se encuentran dentro de los valores límites del conjunto de datos que se utilizó para esta práctica.
+
+Por último, también se debe mencionar que el dataframe preprocesado y al que se le realizaron las labores de limpieza fue guardado con el nombre hear_clean.csv en la carpeta de la práctica en GitHub.
+
+```{r}
+# Guardamos el dataframe que fue objeto de limpieza
+
+write.csv(df_heart_attack, file = "heart_clean.csv")
+```
+
+
+
+
+
+
