@@ -1,0 +1,16 @@
+Práctica 2 - Tipología y Ciclo de Vida de los Datos
+Máster en Ciencia de Datos
+
+Realizada por: Andres Ricardo Sanabria Garay
+
+
+Enlace a repositorio de GitHub dónde se encuentran los archivos:
+
+https://github.com/Sanabriaga/pra2_Tipologia_y_ciclo_de_vida_de_los_datos_UOC.git
+
+
+
+Enlace al video que hace parte de las evidencias:
+
+https://drive.google.com/file/d/1jW_fH6VlasiOykRpyh_QakHQo5CgGtdw/view?usp=sharing
+
