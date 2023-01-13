@@ -5,6 +5,8 @@ Presentado por: Andres Ricardo Sanabria Garay
 
 Los ficheros que encontrará en este repositorio son los siguientes:
 
+Enlaces_evidencias_practica_2_ARSG.txt: Fichero con los enlaces a este repositorio y el video que hace parte de las evidencias. Este archivo es el que se carga en el espacio de entrega de los recursos de evaluación de la plataforma de la UOC.
+
 LICENSE:          Corresponde con la licencia bajo la cual se publica este trabajo.
 
 Practica_2.pdf:   Documento que recoge las respuestas y conclusiones de la práctica.
